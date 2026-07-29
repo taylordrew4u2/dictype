@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 #
-# release.sh — build, sign, notarize, staple, and package DicType for distribution.
+# release.sh — build, sign, notarize, staple and package DicType for public
+# distribution. Maintainer only; requires an Apple Developer Program membership.
+#
+# Most people do not need this. `bash build-dmg.sh` produces a working,
+# ad-hoc-signed DMG with no certificate and no Apple account. This script only
+# adds Apple notarization, which is what removes the Gatekeeper warning for
+# people downloading the DMG from the internet.
 #
 # One-time setup (see README):
 #   1. Create a "Developer ID Application" certificate and install it in your keychain.
@@ -15,24 +21,24 @@
 #
 set -euo pipefail
 
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 APP_NAME="DicType"
 BUNDLE="${APP_NAME}.app"
-ASSETS_DIR="${ASSETS_DIR:-../assets}"
-DMG="${ASSETS_DIR}/${APP_NAME}.dmg"
-ZIP="${ASSETS_DIR}/${APP_NAME}.zip"
+OUTPUT_DIR="${OUTPUT_DIR:-../assets}"
+DMG="${OUTPUT_DIR}/${APP_NAME}.dmg"
+ZIP="${OUTPUT_DIR}/${APP_NAME}.zip"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-dictype}"
-VOLUME_NAME="${APP_NAME}"
 
-BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; RESET=$'\033[0m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; RESET=$'\033[0m'
 say()  { printf "\n%s▸ %s%s\n" "$BOLD" "$1" "$RESET"; }
 note() { printf "%s  %s%s\n" "$DIM" "$1" "$RESET"; }
-warn() { printf "%s  %s%s\n" "$YELLOW" "$1" "$RESET"; }
 die()  { printf "\nError: %s\n" "$1" >&2; exit 1; }
 
 [[ "$(uname -s)" == "Darwin" ]] || die "macOS only."
 command -v swift >/dev/null 2>&1 || die "Swift not found. Run: xcode-select --install"
-command -v xcrun >/dev/null 2>&1 || die "Xcode command line tools not found."
-command -v hdiutil >/dev/null 2>&1 || die "hdiutil not found. Install Xcode Command Line Tools."
+command -v xcrun >/dev/null 2>&1 || die "Command Line Tools not found. Run: xcode-select --install"
+command -v hdiutil >/dev/null 2>&1 || die "hdiutil not found. Run: xcode-select --install"
 
 # --- 1. locate signing identity ----------------------------------------------
 
@@ -50,7 +56,10 @@ fi
 [[ -n "${IDENTITY:-}" ]] || die "No 'Developer ID Application' certificate found.
        Create one at developer.apple.com/account/resources/certificates
        or via Xcode > Settings > Accounts > Manage Certificates.
-       Then rerun, or set DEV_ID=\"Developer ID Application: Your Name (TEAMID)\"."
+       Then rerun, or set DEV_ID=\"Developer ID Application: Your Name (TEAMID)\".
+
+       If you only want a DMG for yourself, use build-dmg.sh instead — it
+       needs no certificate."
 
 note "$IDENTITY"
 
@@ -58,8 +67,7 @@ note "$IDENTITY"
 
 say "Checking notarization credentials"
 
-if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" \
-     >/dev/null 2>&1; then
+if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" >/dev/null 2>&1; then
   die "No stored credentials under profile '$KEYCHAIN_PROFILE'.
        Run this once:
          xcrun notarytool store-credentials \"$KEYCHAIN_PROFILE\" \\
@@ -69,34 +77,14 @@ if ! xcrun notarytool history --keychain-profile "$KEYCHAIN_PROFILE" \
 fi
 note "profile '$KEYCHAIN_PROFILE' is valid"
 
-# --- 3. build ----------------------------------------------------------------
+# --- 3. build and sign with the hardened runtime -----------------------------
 
-say "Compiling release binary"
-swift build -c release
+mkdir -p "$OUTPUT_DIR"
+rm -f "$DMG" "$ZIP"
 
-BIN="$(swift build -c release --show-bin-path)/${APP_NAME}"
-[[ -x "$BIN" ]] || die "Build produced no binary."
+SIGN_IDENTITY="$IDENTITY" HARDENED=1 bash build.sh
 
-say "Assembling ${BUNDLE}"
-mkdir -p "$ASSETS_DIR"
-rm -rf "$BUNDLE" "$DMG" "$ZIP"
-mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
-cp "$BIN" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
-cp Resources/Info.plist "${BUNDLE}/Contents/Info.plist"
-cp Resources/AppIcon.svg "${BUNDLE}/Contents/Resources/AppIcon.svg"
-printf 'APPL????' > "${BUNDLE}/Contents/PkgInfo"
-
-# --- 4. sign with hardened runtime -------------------------------------------
-
-say "Signing with hardened runtime"
-codesign --force --options runtime --timestamp \
-         --entitlements Resources/DicType.entitlements \
-         --sign "$IDENTITY" \
-         "$BUNDLE"
-
-codesign --verify --strict --verbose=2 "$BUNDLE" 2>&1 | sed 's/^/  /'
-
-# --- 5. notarize the app -----------------------------------------------------
+# --- 4. notarize the app -----------------------------------------------------
 
 say "Submitting app for notarization (this usually takes 1–5 minutes)"
 ditto -c -k --keepParent "$BUNDLE" "$ZIP"
@@ -109,19 +97,22 @@ say "Stapling ticket to app"
 xcrun stapler staple "$BUNDLE"
 rm -f "$ZIP"
 
-# --- 6. build the DMG --------------------------------------------------------
+# --- 5. build the DMG --------------------------------------------------------
 
 say "Building drag-to-install disk image"
 STAGING="$(mktemp -d)"
-mkdir -p "$STAGING/$APP_NAME"
-cp -R "$BUNDLE" "$STAGING/$APP_NAME/"
+trap 'rm -rf "$STAGING"' EXIT
+
+# App and Applications symlink both live at the root of the image so the user
+# can drag one onto the other the moment the DMG opens.
+cp -R "$BUNDLE" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
-hdiutil create -volname "$VOLUME_NAME" \
+hdiutil create -volname "$APP_NAME" \
                -srcfolder "$STAGING" \
+               -fs HFS+ \
                -ov -format UDZO \
                "$DMG" >/dev/null
-rm -rf "$STAGING"
 
 [[ -f "$DMG" ]] || die "DMG was not created."
 
@@ -136,12 +127,12 @@ xcrun notarytool submit "$DMG" \
 say "Stapling ticket to disk image"
 xcrun stapler staple "$DMG"
 
-# --- 7. verify ---------------------------------------------------------------
+# --- 6. verify ---------------------------------------------------------------
 
 say "Verifying Gatekeeper acceptance"
 spctl --assess --type execute --verbose=2 "$BUNDLE" 2>&1 | sed 's/^/  /'
 
-# --- 8. ship-ready zip for GitHub Releases -----------------------------------
+# --- 7. ship-ready zip for GitHub Releases -----------------------------------
 
 ditto -c -k --keepParent "$BUNDLE" "$ZIP"
 
@@ -152,8 +143,8 @@ cat <<EOS
 
 Attach both to a GitHub release:
 
-  gh release create v1.0.0 ${DMG} ${ZIP} \\
-     --title "DicType 1.0.0" \\
+  gh release create v1.1.0 ${DMG} ${ZIP} \\
+     --title "DicType 1.1.0" \\
      --notes "Speak, and watch it type."
 
 Both are notarized. Users double-click. No right-click, no warnings.
