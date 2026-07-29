@@ -17,8 +17,9 @@ set -euo pipefail
 
 APP_NAME="DicType"
 BUNDLE="${APP_NAME}.app"
-DMG="${APP_NAME}.dmg"
-ZIP="${APP_NAME}.zip"
+ASSETS_DIR="${ASSETS_DIR:-../assets}"
+DMG="${ASSETS_DIR}/${APP_NAME}.dmg"
+ZIP="${ASSETS_DIR}/${APP_NAME}.zip"
 KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-dictype}"
 VOLUME_NAME="${APP_NAME}"
 
@@ -31,6 +32,7 @@ die()  { printf "\nError: %s\n" "$1" >&2; exit 1; }
 [[ "$(uname -s)" == "Darwin" ]] || die "macOS only."
 command -v swift >/dev/null 2>&1 || die "Swift not found. Run: xcode-select --install"
 command -v xcrun >/dev/null 2>&1 || die "Xcode command line tools not found."
+command -v hdiutil >/dev/null 2>&1 || die "hdiutil not found. Install Xcode Command Line Tools."
 
 # --- 1. locate signing identity ----------------------------------------------
 
@@ -76,6 +78,7 @@ BIN="$(swift build -c release --show-bin-path)/${APP_NAME}"
 [[ -x "$BIN" ]] || die "Build produced no binary."
 
 say "Assembling ${BUNDLE}"
+mkdir -p "$ASSETS_DIR"
 rm -rf "$BUNDLE" "$DMG" "$ZIP"
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp "$BIN" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
@@ -110,16 +113,17 @@ rm -f "$ZIP"
 
 say "Building drag-to-install disk image"
 STAGING="$(mktemp -d)"
-cp -R "$BUNDLE" "$STAGING/"
+mkdir -p "$STAGING/$APP_NAME"
+cp -R "$BUNDLE" "$STAGING/$APP_NAME/"
 ln -s /Applications "$STAGING/Applications"
-
-# Ensure the final artifact is a distributable DMG for easy installation.
 
 hdiutil create -volname "$VOLUME_NAME" \
                -srcfolder "$STAGING" \
                -ov -format UDZO \
                "$DMG" >/dev/null
 rm -rf "$STAGING"
+
+[[ -f "$DMG" ]] || die "DMG was not created."
 
 say "Signing disk image"
 codesign --force --sign "$IDENTITY" "$DMG"
