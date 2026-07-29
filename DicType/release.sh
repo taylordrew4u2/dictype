@@ -112,6 +112,8 @@ STAGING="$(mktemp -d)"
 cp -R "$BUNDLE" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
+# Ensure the final artifact is a distributable DMG for easy installation.
+
 hdiutil create -volname "$VOLUME_NAME" \
                -srcfolder "$STAGING" \
                -ov -format UDZO \
