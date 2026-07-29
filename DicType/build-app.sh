@@ -45,12 +45,21 @@ cp Resources/AppIcon.svg "${BUNDLE}/Contents/Resources/AppIcon.svg"
 printf 'APPL????' > "${BUNDLE}/Contents/PkgInfo"
 
 # --- sign --------------------------------------------------------------------
-# Ad-hoc signature. Free, and gives the app a stable identity so macOS
-# remembers its permissions instead of re-asking after every launch.
+# Signing is optional for local builds. Use SIGN_BUILD=1 to apply an ad-hoc
+# signature, otherwise the bundle remains unsigned.
 
-say "Signing (ad-hoc)..."
-codesign --force --deep --sign - "$BUNDLE" 2>/dev/null \
-  || note "codesign unavailable; continuing unsigned."
+if [[ "${SIGN_BUILD:-0}" == "1" ]]; then
+  if command -v codesign >/dev/null 2>&1; then
+    say "Signing (ad-hoc)..."
+    if ! codesign --force --deep --sign - "$BUNDLE" 2>/dev/null; then
+      note "codesign failed; continuing unsigned."
+    fi
+  else
+    note "codesign not found; continuing unsigned."
+  fi
+else
+  note "Skipping codesign; build remains unsigned."
+fi
 
 # --- done --------------------------------------------------------------------
 

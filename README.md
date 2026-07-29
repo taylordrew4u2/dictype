@@ -34,7 +34,7 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 3. Open it and drag **DicType** onto the **Applications** shortcut.
 4. Double-click DicType.
 
-That's it. No security warnings, no right-clicking, no terminal. DicType is signed and notarized by Apple.
+That's it. No security warnings, no right-clicking, no terminal. Official releases are signed and notarized by Apple, while local builds work without a developer certificate.
 
 The app opens to a polished setup walk-through with clear icons, rich status feedback, and a refined visual style that feels more like a modern desktop utility than a basic prototype. The packaged app also ships with a custom icon so it looks polished in the Dock, Applications folder, and Finder.
 
@@ -51,6 +51,12 @@ bash build-app.sh
 ```
 
 `DicType.app` appears in the folder. Drag it to Applications.
+
+`build-app.sh` does not require a signing certificate for local builds. To locally apply an ad-hoc signature, run:
+
+```bash
+SIGN_BUILD=1 bash build-app.sh
+```
 
 Requires Xcode Command Line Tools. If you don't have them:
 
