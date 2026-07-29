@@ -54,10 +54,16 @@ bash build-local.sh
 
 This local build does not require Xcode. It only needs a Swift command-line toolchain from swift.org or a compatible Swift toolchain installed on your Mac.
 
-To apply an optional ad-hoc code signature, run:
+To build a locally packaged release-style app, run:
 
 ```bash
-SIGN_BUILD=1 bash build-local.sh
+bash build-release.sh
+```
+
+To apply an optional ad-hoc code signature during that local package step, run:
+
+```bash
+SIGN_BUILD=1 bash build-release.sh
 ```
 
 ---
@@ -170,7 +176,7 @@ Check that the right microphone is selected in System Settings → Sound → Inp
 <details>
 <summary><b>I want a different language</b></summary>
 
-Open `Sources/DicType/DictationEngine.swift`, change `localeID` from `"en-US"`, and rebuild with `bash build-app.sh`.
+Open `Sources/DicType/DictationEngine.swift`, change `localeID` from `"en-US"`, and rebuild with `bash build-local.sh`.
 
 </details>
 
