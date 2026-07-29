@@ -16,12 +16,12 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 <br>
 
-| | |
-|---|---|
-| **Platform** | macOS 13 Ventura or newer |
-| **Privacy** | Speech is transcribed on your Mac. Nothing is uploaded. |
+|              |                                                            |
+| ------------ | ---------------------------------------------------------- |
+| **Platform** | macOS 13 Ventura or newer                                  |
+| **Privacy**  | Speech is transcribed on your Mac. Nothing is uploaded.    |
 | **Works in** | Notes, Slack, Xcode, Mail, browsers, anywhere you can type |
-| **Cost** | Free, MIT licensed |
+| **Cost**     | Free, MIT licensed                                         |
 
 ---
 
@@ -36,7 +36,7 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 That's it. No security warnings, no right-clicking, no terminal. DicType is signed and notarized by Apple.
 
-The app opens to a polished setup walk-through with clear icons, rich status feedback, and a refined visual style that feels more like a modern desktop utility than a basic prototype.
+The app opens to a polished setup walk-through with clear icons, rich status feedback, and a refined visual style that feels more like a modern desktop utility than a basic prototype. The packaged app also ships with a custom icon so it looks polished in the Dock, Applications folder, and Finder.
 
 <br>
 
@@ -62,7 +62,7 @@ xcode-select --install
 
 ## Releasing a signed build
 
-*Maintainer only. Requires an Apple Developer Program membership.*
+_Maintainer only. Requires an Apple Developer Program membership._
 
 **One-time setup**
 
@@ -95,19 +95,19 @@ gh release create v1.0.0 DicType.dmg DicType.zip \
    --notes "Speak, and watch it type."
 ```
 
-**Note on sandboxing.** DicType is signed with the hardened runtime but is deliberately *not* sandboxed. A sandboxed app cannot post keyboard events into other applications, which is the entire function of this tool. That rules out Mac App Store distribution; direct download is the only channel.
+**Note on sandboxing.** DicType is signed with the hardened runtime but is deliberately _not_ sandboxed. A sandboxed app cannot post keyboard events into other applications, which is the entire function of this tool. That rules out Mac App Store distribution; direct download is the only channel.
 
 ---
 
 ## First launch
 
-DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process with a calm, premium feel.
+DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process with a calm, premium feel and recognizable iconography throughout.
 
-| | Permission | Why |
-|---|---|---|
-| 1 | **Microphone** | To hear you |
-| 2 | **Speech Recognition** | To turn sound into words, on this Mac |
-| 3 | **Accessibility** | To type into your other apps |
+|     | Permission             | Why                                   |
+| --- | ---------------------- | ------------------------------------- |
+| 1   | **Microphone**         | To hear you                           |
+| 2   | **Speech Recognition** | To turn sound into words, on this Mac |
+| 3   | **Accessibility**      | To type into your other apps          |
 
 Accessibility is the fussy one. macOS opens System Settings and you flip the switch next to DicType by hand. If the switch won't stay enabled, quit DicType entirely (`Cmd + Q`) and open it again.
 
@@ -148,24 +148,28 @@ Press the button again to stop.
 <summary><b>The setup screen won't turn green</b></summary>
 
 Quit DicType completely with `Cmd + Q` — closing the window isn't enough — then reopen it. macOS sometimes doesn't hand a running app its new permissions.
+
 </details>
 
 <details>
 <summary><b>It hears me but nothing gets typed</b></summary>
 
 Accessibility permission. System Settings → Privacy & Security → Accessibility. DicType must be listed **and** switched on. Listed-but-off is the usual cause.
+
 </details>
 
 <details>
 <summary><b>Nothing is heard at all</b></summary>
 
 Check that the right microphone is selected in System Settings → Sound → Input, and that its level moves when you speak.
+
 </details>
 
 <details>
 <summary><b>I want a different language</b></summary>
 
 Open `Sources/DicType/DictationEngine.swift`, change `localeID` from `"en-US"`, and rebuild with `bash build-app.sh`.
+
 </details>
 
 ---
