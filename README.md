@@ -2,7 +2,7 @@
 
 **Speak. Watch it type.**
 
-macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with the pauses, rhythm, and hesitations of an actual person at a keyboard.
+macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural rhythm, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
 
 <br>
 
@@ -36,7 +36,7 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 That's it. No security warnings, no right-clicking, no terminal. DicType is signed and notarized by Apple.
 
-The app opens and walks you through the rest.
+The app opens to a polished setup walk-through that guides you through the permissions with clear icons and live status updates.
 
 <br>
 
@@ -101,7 +101,7 @@ gh release create v1.0.0 DicType.dmg DicType.zip \
 
 ## First launch
 
-DicType opens to a setup screen with three cards. Each one turns green as you approve it. The screen watches for changes on its own — no refreshing, no restarting.
+DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process without feeling clunky or technical.
 
 | | Permission | Why |
 |---|---|---|
@@ -111,7 +111,7 @@ DicType opens to a setup screen with three cards. Each one turns green as you ap
 
 Accessibility is the fussy one. macOS opens System Settings and you flip the switch next to DicType by hand. If the switch won't hold, quit DicType entirely (`Cmd + Q`) and open it again.
 
-Once all three are green, the setup screen disappears for good.
+Once all three are green, the setup screen disappears and DicType is ready to use.
 
 ---
 
@@ -134,9 +134,9 @@ Press the button again to stop.
 
 ## What to expect
 
-**Text rewrites itself mid-sentence.** Speech recognizers revise their guesses as you keep talking. You'll see characters backspace and retype. That's real-time transcription, not a bug.
+**Text stays on screen and builds naturally.** DicType keeps the visible transcript stable as you speak, so words don't vanish or get erased mid-stream. It still feels dynamic, with uneven pacing and tiny pauses that make the typing feel human.
 
-**Typing trails your voice.** Speech runs 500–800 characters per minute. Typing at 62 WPM runs about 310. DicType speeds up automatically when it falls behind and eases off once it catches up, but a gap during long stretches of talking is unavoidable.
+**Typing trails your voice.** Speech runs 500–800 characters per minute. Typing at a human pace runs more slowly, so DicType naturally adjusts its cadence to keep up without feeling perfectly mechanical.
 
 **Keystrokes land wherever the cursor is.** Click into your target field before you start talking, or your words will go somewhere you didn't intend.
 
@@ -173,9 +173,9 @@ Open `Sources/DicType/DictationEngine.swift`, change `localeID` from `"en-US"`, 
 ## How it works
 
 1. `AVAudioEngine` captures the microphone.
-2. `SFSpeechRecognizer` returns partial transcripts, revising them as you speak.
-3. Each transcript is diffed against what's already on screen. The part that changed gets backspaced; the new part is queued.
-4. The queue drains on a log-normal timer — the same statistical shape real keystroke intervals follow — with longer gaps after spaces, commas, and periods, plus occasional hesitations.
+2. `SFSpeechRecognizer` returns partial transcripts as you speak.
+3. Each transcript is compared to the last confirmed text, and only the newly spoken characters are queued so the visible output stays stable.
+4. The queue drains on a human-like timing model with uneven pauses, longer gaps after punctuation or word boundaries, and the occasional micro-hitch.
 5. Each character is posted to the system as a `CGEvent`, indistinguishable from a real keypress.
 
 ---

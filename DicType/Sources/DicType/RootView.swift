@@ -19,9 +19,22 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Palette.ink, Palette.inkSoft],
-                           startPoint: .top, endPoint: .bottom)
+            LinearGradient(colors: [Color(red: 0.03, green: 0.04, blue: 0.06),
+                                    Color(red: 0.10, green: 0.11, blue: 0.16)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
+
+            Circle()
+                .fill(Palette.ember.opacity(0.10))
+                .frame(width: 360, height: 360)
+                .blur(radius: 80)
+                .offset(x: -140, y: -200)
+
+            Circle()
+                .fill(Palette.mint.opacity(0.08))
+                .frame(width: 280, height: 280)
+                .blur(radius: 70)
+                .offset(x: 180, y: 220)
 
             if perms.allGranted {
                 ConsoleView(engine: engine)
@@ -32,7 +45,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: perms.allGranted)
-        .frame(minWidth: 520, minHeight: 620)
+        .frame(minWidth: 560, minHeight: 680)
         .preferredColorScheme(.dark)
     }
 }
@@ -49,74 +62,91 @@ struct OnboardingView: View {
             VStack(spacing: 14) {
                 StepCard(
                     index: 1,
-                    symbol: "mic.fill",
+                    symbol: "mic.circle.fill",
                     title: "Microphone",
-                    detail: "So DicType can hear what you say.",
+                    detail: "Let DicType hear your voice clearly.",
                     state: perms.microphone,
                     action: perms.requestMicrophone
                 )
                 StepCard(
                     index: 2,
-                    symbol: "waveform",
+                    symbol: "sparkles.square.fill.on.square",
                     title: "Speech Recognition",
-                    detail: "So your words become text, on this Mac.",
+                    detail: "Turn your words into text instantly on this Mac.",
                     state: perms.speech,
                     action: perms.requestSpeech
                 )
                 StepCard(
                     index: 3,
-                    symbol: "keyboard.fill",
+                    symbol: "keyboard.badge.ellipsis",
                     title: "Accessibility",
-                    detail: "So DicType can type into your other apps.",
+                    detail: "Give DicType permission to type into other apps.",
                     state: perms.accessibility,
                     action: perms.requestAccessibility
                 )
             }
             .padding(.horizontal, 28)
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 12)
 
             footer
         }
         .padding(.vertical, 30)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.025))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .padding(24)
     }
 
     private var header: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(Palette.ember.opacity(0.16))
-                    .frame(width: 78, height: 78)
-                Image(systemName: "keyboard.badge.waveform")
-                    .font(.system(size: 33, weight: .medium))
-                    .foregroundStyle(Palette.emberSoft)
+                    .fill(LinearGradient(colors: [Palette.ember.opacity(0.24), Palette.emberSoft.opacity(0.2)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 86, height: 86)
+                    .shadow(color: Palette.ember.opacity(0.2), radius: 18, x: 0, y: 10)
+                Image(systemName: "waveform.badge.plus")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(.white)
             }
 
-            Text("Welcome to DicType")
-                .font(.system(size: 27, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+            VStack(spacing: 6) {
+                Text("Welcome to DicType")
+                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
 
-            Text("Three quick permissions and you're done.")
-                .font(.system(size: 14))
-                .foregroundStyle(Palette.dim)
+                Text("A few permissions unlock a seamless voice typing experience.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.dim)
+                    .multilineTextAlignment(.center)
+            }
 
             ProgressPips(total: 3, filled: perms.grantedCount)
-                .padding(.top, 6)
+                .padding(.top, 2)
         }
-        .padding(.bottom, 26)
+        .padding(.bottom, 24)
     }
 
     private var footer: some View {
         VStack(spacing: 8) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 12))
-                .foregroundStyle(Palette.dim)
-            Text("This screen updates on its own as you approve each one.")
-                .font(.system(size: 12))
-                .foregroundStyle(Palette.dim)
-            Text("If a switch won't stick, quit DicType and open it again.")
+            HStack(spacing: 6) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.emberSoft)
+                Text("This screen updates as you complete each step.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.dim)
+            }
+            Text("If a permission switch won’t stay enabled, reopen DicType and try again.")
                 .font(.system(size: 11))
-                .foregroundStyle(Palette.dim.opacity(0.7))
+                .foregroundStyle(Palette.dim.opacity(0.75))
+                .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 28)
     }
@@ -153,11 +183,11 @@ struct StepCard: View {
     var body: some View {
         HStack(spacing: 15) {
             ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(done ? Palette.mint.opacity(0.18) : Palette.ember.opacity(0.15))
-                    .frame(width: 44, height: 44)
-                Image(systemName: done ? "checkmark" : symbol)
-                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: 46, height: 46)
+                Image(systemName: done ? "checkmark.circle.fill" : symbol)
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(done ? Palette.mint : Palette.emberSoft)
             }
 
@@ -178,10 +208,11 @@ struct StepCard: View {
 
             if !done {
                 Button(action: action) {
-                    Text(state == .denied ? "Open Settings" : "Allow")
+                    Label(state == .denied ? "Open Settings" : "Allow",
+                          systemImage: state == .denied ? "gearshape.fill" : "plus.circle.fill")
                         .font(.system(size: 13, weight: .semibold))
                         .padding(.horizontal, 15)
-                        .padding(.vertical, 7)
+                        .padding(.vertical, 8)
                         .background(
                             Capsule().fill(Palette.ember)
                         )
@@ -235,17 +266,33 @@ struct ConsoleView: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            Text("DicType")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.top, 26)
+            HStack {
+                Image(systemName: "keyboard.badge.waveform")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Palette.emberSoft)
+                Text("DicType")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+                Capsule()
+                    .fill(Palette.mint.opacity(0.18))
+                    .overlay(
+                        Text("Live")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Palette.mint)
+                            .padding(.horizontal, 8)
+                    )
+                    .frame(width: 54, height: 24)
+            }
+            .padding(.top, 24)
+            .padding(.horizontal, 28)
 
             micButton
 
             Text(engine.isListening
                  ? "Click into any text field and speak."
                  : "Ready when you are.")
-                .font(.system(size: 13))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Palette.dim)
 
             if let err = engine.errorMessage {
@@ -271,11 +318,12 @@ struct ConsoleView: View {
             ZStack {
                 Circle()
                     .fill(engine.isListening ? Palette.ember : Color.white.opacity(0.08))
-                    .frame(width: 108, height: 108)
+                    .frame(width: 112, height: 112)
+                    .shadow(color: engine.isListening ? Palette.ember.opacity(0.24) : .clear, radius: 18, x: 0, y: 12)
                 Circle()
                     .stroke(engine.isListening ? Palette.ember.opacity(0.35) : .clear,
                             lineWidth: 10)
-                    .frame(width: 128, height: 128)
+                    .frame(width: 132, height: 132)
                 Image(systemName: engine.isListening ? "stop.fill" : "mic.fill")
                     .font(.system(size: 38, weight: .medium))
                     .foregroundStyle(.white)
@@ -297,10 +345,14 @@ struct ConsoleView: View {
                 .lineLimit(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white.opacity(0.045))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
         )
         .padding(.horizontal, 28)
     }
@@ -319,6 +371,7 @@ struct ConsoleView: View {
             }
         }
         .padding(.horizontal, 28)
+        .padding(.top, 4)
     }
 
     private func labelled<C: View>(_ title: String,

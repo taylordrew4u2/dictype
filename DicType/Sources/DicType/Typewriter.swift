@@ -10,13 +10,16 @@ enum Op {
 final class Typewriter {
 
     /// Average typing speed in words per minute.
-    var targetWPM: Double = 62
+    var targetWPM: Double = 48
 
-    /// Rhythm variability. 0 is metronomic, 0.6 looks erratic.
-    var jitterSigma: Double = 0.42
+    /// Rhythm variability. 0 is metronomic, 0.6+ looks erratic.
+    var jitterSigma: Double = 0.72
 
-    /// Per-word chance of a 0.3–0.9s thinking pause.
-    var hesitationOdds: Double = 0.055
+    /// Per-word chance of a 0.2–1.0s thinking pause.
+    var hesitationOdds: Double = 0.11
+
+    /// Chance of a tiny micro-pause before a word boundary.
+    var microPauseOdds: Double = 0.09
 
     private var queue: [Op] = []
     private let lock = NSLock()
@@ -55,23 +58,29 @@ final class Typewriter {
     /// Milliseconds to wait after emitting `c`, before the next keystroke.
     private func interval(after c: Character) -> Int {
         var ms = baseIntervalMs * exp(jitterSigma * gaussian())
+        ms *= Double.random(in: 0.72...1.38)           // bursty, uneven rhythm
 
         switch c {
         case ".", "!", "?":
-            ms *= 3.5                                   // end of thought
+            ms *= Double.random(in: 3.2...5.0)         // end of thought
         case ",", ";", ":":
-            ms *= 2.2                                   // clause break
+            ms *= Double.random(in: 1.8...2.8)         // clause break
         case " ":
-            ms *= 1.4                                   // word boundary
+            ms *= Double.random(in: 1.05...1.8)        // word boundary
             if Double.random(in: 0...1) < hesitationOdds {
-                ms += Double.random(in: 300...900)      // hesitation
+                ms += Double.random(in: 180...950)     // hesitation
+            }
+            if Double.random(in: 0...1) < microPauseOdds {
+                ms += Double.random(in: 70...260)      // tiny micro-pause
             }
         case let x where x.isUppercase:
-            ms *= 1.3                                   // shift travel
+            ms *= Double.random(in: 1.15...1.5)        // shift travel
         case let x where x.isNumber:
-            ms *= 1.5                                   // number row reach
+            ms *= Double.random(in: 1.25...1.8)        // number row reach
         default:
-            break
+            if Double.random(in: 0...1) < 0.07 {
+                ms += Double.random(in: 30...140)      // occasional hitch
+            }
         }
 
         // Catch up when speech has outrun the fingers.
@@ -80,7 +89,7 @@ final class Typewriter {
         else if depth > 120 { ms *= 0.65 }
         else if depth > 60  { ms *= 0.85 }
 
-        return Int(min(max(ms, 14), 2_000))
+        return Int(min(max(ms, 14), 2_500))
     }
 
     // MARK: - Loop
@@ -104,8 +113,7 @@ final class Typewriter {
 
         switch op {
         case .backspace:
-            post(virtualKey: 51, unicode: nil)          // kVK_Delete
-            schedule(after: Int.random(in: 45...80))    // corrections burst
+            schedule(after: Int.random(in: 20...35))    // ignore and keep the visible text intact
         case .char(let c):
             post(virtualKey: 0, unicode: Array(String(c).utf16))
             schedule(after: interval(after: c))
@@ -137,11 +145,10 @@ final class Differ {
         var i = 0
         while i < a.count && i < b.count && a[i] == b[i] { i += 1 }
 
-        var ops: [Op] = []
-        ops.append(contentsOf: Array(repeating: Op.backspace, count: a.count - i))
-        ops.append(contentsOf: b[i...].map { Op.char($0) })
-
-        if !ops.isEmpty { writer.enqueue(ops) }
+        let newChars = b[i...]
+        if !newChars.isEmpty {
+            writer.enqueue(newChars.map { Op.char($0) })
+        }
         typed = incoming
     }
 
