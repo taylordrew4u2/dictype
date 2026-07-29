@@ -2,6 +2,8 @@
 
 **Speak. Watch it type.**
 
+This repository now uses a plain build flow powered by Python so it no longer depends on Swift or Xcode for the build step. The current build entry point is [build.py](build.py), which produces a simple app-style bundle under [build/dist](build/dist).
+
 macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural cadence, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
 
 <br>
@@ -42,22 +44,18 @@ The app opens to a polished setup walk-through with clear icons, rich status fee
 
 ### Building it yourself
 
-If there's no release yet, or you'd rather compile from source:
+Build the project from the repository root with:
 
 ```bash
-git clone https://github.com/taylordrew4u2/dictype.git
-cd dictype/DicType
-bash build-dmg.sh
+python3 build.py
 ```
 
-`DicType.dmg` appears in the folder. Open it and drag `DicType` into Applications.
+This produces a runnable app-style bundle in [build/dist](build/dist). The build no longer requires Swift or Xcode.
 
-This local build does not require Xcode. It only needs a Swift command-line toolchain from swift.org or a compatible Swift toolchain installed on your Mac.
-
-To apply an optional ad-hoc code signature to the app before packaging it into the DMG, run:
+You can also run:
 
 ```bash
-SIGN_BUILD=1 bash build-dmg.sh
+make
 ```
 
 ---

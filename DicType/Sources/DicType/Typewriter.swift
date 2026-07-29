@@ -3,7 +3,6 @@ import CoreGraphics
 
 enum Op {
     case char(Character)
-    case backspace
 }
 
 /// Emits synthesized keystrokes at a human, log-normally distributed cadence.
@@ -112,8 +111,6 @@ final class Typewriter {
         lock.unlock()
 
         switch op {
-        case .backspace:
-            schedule(after: Int.random(in: 20...35))    // ignore and keep the visible text intact
         case .char(let c):
             post(virtualKey: 0, unicode: Array(String(c).utf16))
             schedule(after: interval(after: c))
