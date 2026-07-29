@@ -246,6 +246,18 @@ class TestSwiftSources(unittest.TestCase):
         self.assertIsNotNone(match, "Package.swift declares no target path")
         self.assertTrue((DICTYPE / match.group(1)).is_dir())
 
+    def test_revision_logic_has_swift_tests_that_ci_runs(self):
+        # The typewriter decides when to emit backspaces. If that is wrong it
+        # deletes text the user typed by hand, so it must not go unverified.
+        suite = DICTYPE / "Tests" / "DicTypeTests" / "TypewriterTests.swift"
+        self.assertTrue(suite.is_file(), "the typewriter test suite is missing")
+
+        package = (DICTYPE / "Package.swift").read_text(encoding="utf-8")
+        self.assertIn(".testTarget", package, "Package.swift declares no test target")
+
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("swift test", ci, "CI does not run the Swift tests")
+
     def test_entry_point_is_not_named_main_swift(self):
         # SwiftPM treats main.swift as top-level code, which conflicts with the
         # @main attribute the SwiftUI App type uses.

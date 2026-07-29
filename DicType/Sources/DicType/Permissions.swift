@@ -31,15 +31,46 @@ final class Permissions: ObservableObject {
         [microphone, speech, accessibility].filter { $0 == .granted }.count
     }
 
+    private var activationObserver: NSObjectProtocol?
+
     init() {
+        // refresh() starts the poll itself if anything is still outstanding.
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+
+        // Once setup is done the poll stops, but a permission can still be
+        // revoked in System Settings. Re-checking when DicType comes back to the
+        // front catches that at the moment the user returns from doing it.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
             self?.refresh()
         }
     }
 
     deinit {
         timer?.invalidate()
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+        }
+    }
+
+    /// Polls only while there is still something for the user to approve.
+    ///
+    /// The onboarding screen needs to turn green the moment a switch is flipped
+    /// in System Settings, which nothing notifies us about. Polling forever
+    /// afterwards just burns a wakeup a second for the life of the process.
+    private func startPolling() {
+        guard timer == nil, !allGranted else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    private func stopPolling() {
+        timer?.invalidate()
+        timer = nil
     }
 
     func refresh() {
@@ -62,6 +93,12 @@ final class Permissions: ObservableObject {
         if mic != microphone { microphone = mic }
         if spc != speech { speech = spc }
         if axs != accessibility { accessibility = axs }
+
+        if allGranted {
+            stopPolling()
+        } else {
+            startPolling()
+        }
     }
 
     // MARK: - Requests
