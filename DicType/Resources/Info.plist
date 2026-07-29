@@ -20,6 +20,8 @@
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>DicType listens to your voice so it can type what you say.</string>
     <key>NSSpeechRecognitionUsageDescription</key>

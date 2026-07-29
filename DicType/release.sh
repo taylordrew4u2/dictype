@@ -80,6 +80,7 @@ rm -rf "$BUNDLE" "$DMG" "$ZIP"
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp "$BIN" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
 cp Resources/Info.plist "${BUNDLE}/Contents/Info.plist"
+cp Resources/AppIcon.svg "${BUNDLE}/Contents/Resources/AppIcon.svg"
 printf 'APPL????' > "${BUNDLE}/Contents/PkgInfo"
 
 # --- 4. sign with hardened runtime -------------------------------------------
