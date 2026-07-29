@@ -29,8 +29,8 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 ### The easy way
 
-1. Go to the **[Releases](../../releases)** page.
-2. Download the latest **[DicType.dmg](../../releases/latest)** installer from the releases page.
+1. Go to the **[Releases](releases)** page.
+2. Download the latest **[DicType.dmg](releases/latest)** installer from the releases page.
 3. Open it and drag **DicType** onto the **Applications** shortcut.
 4. Double-click DicType.
 

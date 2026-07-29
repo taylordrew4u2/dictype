@@ -262,8 +262,14 @@ struct StatusPill: View {
 
 struct ConsoleView: View {
     @ObservedObject var engine: DictationEngine
-    @State private var wpm: Double = 62
-    @State private var jitter: Double = 0.42
+    @State private var wpm: Double
+    @State private var jitter: Double
+
+    init(engine: DictationEngine) {
+        self.engine = engine
+        _wpm = State(initialValue: engine.typewriter.targetWPM)
+        _jitter = State(initialValue: engine.typewriter.jitterSigma)
+    }
 
     var body: some View {
         VStack(spacing: 22) {
