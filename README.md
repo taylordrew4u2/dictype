@@ -46,22 +46,18 @@ If there's no release yet, or you'd rather compile from source:
 
 ```bash
 git clone https://github.com/taylordrew4u2/dictype.git
-cd dictype
-bash build-app.sh
+cd dictype/DicType
+bash build-local.sh
 ```
 
 `DicType.app` appears in the folder. Drag it to Applications.
 
-`build-app.sh` does not require a signing certificate for local builds. To locally apply an ad-hoc signature, run:
+This local build does not require Xcode. It only needs a Swift command-line toolchain from swift.org or a compatible Swift toolchain installed on your Mac.
+
+To apply an optional ad-hoc code signature, run:
 
 ```bash
-SIGN_BUILD=1 bash build-app.sh
-```
-
-Requires Xcode Command Line Tools. If you don't have them:
-
-```bash
-xcode-select --install
+SIGN_BUILD=1 bash build-local.sh
 ```
 
 ---
