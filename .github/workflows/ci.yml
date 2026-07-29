@@ -25,6 +25,10 @@ jobs:
       - name: Validate repository layout
         run: python3 -m unittest discover -s tests -v
 
+      - name: Run Swift tests
+        working-directory: DicType
+        run: swift test
+
       - name: Build DicType.dmg
         run: bash DicType/build-dmg.sh
 

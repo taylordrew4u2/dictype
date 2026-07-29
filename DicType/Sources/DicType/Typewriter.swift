@@ -1,45 +1,128 @@
 import Foundation
 import CoreGraphics
 
-enum Op {
-    case char(Character)
+/// A single key event the typewriter wants to produce.
+enum Keystroke: Equatable {
+    case character(Character)
+    case backspace
 }
 
 /// Emits synthesized keystrokes at a human, log-normally distributed cadence.
+///
+/// The typewriter owns the text it is meant to have produced, rather than a
+/// queue of characters to append. Speech recognisers revise what they have
+/// already reported — "the cow" becomes "the cows" once more audio arrives — so
+/// the visible output has to be able to move backwards, not only forwards.
+///
+/// Three pieces of state describe that:
+///
+///   text           the full intended output
+///   emitted        how much of `text` has physically been typed
+///   revisableFrom  index before which text is final and must never be undone
+///
+/// A revision only costs backspaces for characters that were actually typed.
+/// Revising text that is still waiting its turn is free, which is the common
+/// case when speech outruns the fingers.
 final class Typewriter {
 
+    // MARK: - Tunables
+
     /// Average typing speed in words per minute.
-    var targetWPM: Double = 62
+    ///
+    /// Written from the UI and read on the typing queue, so it is guarded.
+    var targetWPM: Double {
+        get { settingsLock.lock(); defer { settingsLock.unlock() }; return _targetWPM }
+        set { settingsLock.lock(); _targetWPM = newValue; settingsLock.unlock() }
+    }
 
     /// Rhythm variability. 0 is metronomic, 0.6+ looks erratic.
-    var jitterSigma: Double = 0.42
+    var jitterSigma: Double {
+        get { settingsLock.lock(); defer { settingsLock.unlock() }; return _jitterSigma }
+        set { settingsLock.lock(); _jitterSigma = newValue; settingsLock.unlock() }
+    }
 
     /// Per-word chance of a 0.2–1.0s thinking pause.
-    var hesitationOdds: Double = 0.11
+    private let hesitationOdds: Double = 0.11
 
     /// Chance of a tiny micro-pause before a word boundary.
-    var microPauseOdds: Double = 0.09
+    private let microPauseOdds: Double = 0.09
 
-    private var queue: [Op] = []
+    private var _targetWPM: Double = 62
+    private var _jitterSigma: Double = 0.42
+    private let settingsLock = NSLock()
+
+    // MARK: - Output state
+
+    private var text: [Character] = []
+    private var emitted = 0
+    private var revisableFrom = 0
+    private var backspaceDebt = 0
+
     private let lock = NSLock()
     private let src = CGEventSource(stateID: .combinedSessionState)
     private let workQueue = DispatchQueue(label: "com.taylordrew.dictype.typewriter")
-    private var running = true
+
+    /// Virtual key code for Delete (backspace). Carbon's kVK_Delete.
+    private let deleteKey: CGKeyCode = 51
 
     init() { schedule(after: 30) }
 
-    func enqueue(_ ops: [Op]) {
-        lock.lock(); queue.append(contentsOf: ops); lock.unlock()
+    // MARK: - Input
+
+    /// Replaces the revisable tail with `incoming`.
+    ///
+    /// Call this with each partial transcript. Characters shared with what is
+    /// already on screen are left alone; anything typed past the point where the
+    /// two diverge is scheduled for deletion.
+    func setLive(_ incoming: String) {
+        let new = Array(incoming)
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        let existing = Array(text[revisableFrom...])
+        var i = 0
+        while i < existing.count && i < new.count && existing[i] == new[i] { i += 1 }
+
+        // Absolute index of the first character the two versions disagree on.
+        let divergence = revisableFrom + i
+
+        // Only characters already on screen need deleting. `emitted` is the
+        // logical cursor; the physical one sits `backspaceDebt` further right
+        // until the debt is paid, so adding to the debt keeps both consistent.
+        if emitted > divergence {
+            backspaceDebt += emitted - divergence
+            emitted = divergence
+        }
+
+        text.replaceSubrange(revisableFrom..., with: new)
     }
 
+    /// Marks everything typed so far as final and starts a new utterance.
+    ///
+    /// Nothing before this point can be revised afterwards, so a later
+    /// recognition pass can never backspace into an earlier sentence.
+    func commitLive() {
+        lock.lock()
+        text.append(" ")
+        revisableFrom = text.count
+        lock.unlock()
+    }
+
+    /// Drops all pending output. Does not undo anything already typed.
     func clear() {
-        lock.lock(); queue.removeAll(); lock.unlock()
+        lock.lock()
+        text.removeAll()
+        emitted = 0
+        revisableFrom = 0
+        backspaceDebt = 0
+        lock.unlock()
     }
 
-    /// Characters still waiting to be typed.
+    /// Keystrokes still owed, counting deletions.
     var backlog: Int {
         lock.lock(); defer { lock.unlock() }
-        return queue.count
+        return (text.count - emitted) + backspaceDebt
     }
 
     // MARK: - Cadence
@@ -82,6 +165,17 @@ final class Typewriter {
             }
         }
 
+        return clampInterval(ms)
+    }
+
+    /// Corrections run quicker than composition — people delete in a burst.
+    private func deleteInterval() -> Int {
+        clampInterval(baseIntervalMs * Double.random(in: 0.35...0.7))
+    }
+
+    private func clampInterval(_ ms: Double) -> Int {
+        var ms = ms
+
         // Catch up when speech has outrun the fingers.
         let depth = backlog
         if depth > 220      { ms *= 0.45 }
@@ -94,24 +188,54 @@ final class Typewriter {
     // MARK: - Loop
 
     private func schedule(after ms: Int) {
-        guard running else { return }
         workQueue.asyncAfter(deadline: .now() + .milliseconds(ms)) { [weak self] in
             self?.tick()
         }
     }
 
-    private func tick() {
+    /// Advances the state machine one step and reports what to type.
+    ///
+    /// Split out from `tick` so the revision logic — the part that can corrupt
+    /// the user's text if it is wrong — can be tested without posting real
+    /// keyboard events.
+    func nextKeystroke() -> Keystroke? {
         lock.lock()
-        guard !queue.isEmpty else {
-            lock.unlock()
-            schedule(after: 25)                         // idle poll
+        defer { lock.unlock() }
+
+        // Deletions come first: until the debt is paid the characters on screen
+        // past the cursor are stale, so typing over them would compound the error.
+        if backspaceDebt > 0 {
+            backspaceDebt -= 1
+            return .backspace
+        }
+
+        if emitted < text.count {
+            let c = text[emitted]
+            emitted += 1
+            return .character(c)
+        }
+
+        // Idle. Everything committed has been typed, so the finalised prefix can
+        // be dropped and the buffer stays bounded over a long dictation session.
+        if revisableFrom > 0 {
+            text.removeFirst(revisableFrom)
+            emitted -= revisableFrom
+            revisableFrom = 0
+        }
+        return nil
+    }
+
+    private func tick() {
+        guard let stroke = nextKeystroke() else {
+            schedule(after: 25)                        // idle poll
             return
         }
-        let op = queue.removeFirst()
-        lock.unlock()
 
-        switch op {
-        case .char(let c):
+        switch stroke {
+        case .backspace:
+            post(virtualKey: deleteKey, unicode: nil)
+            schedule(after: deleteInterval())
+        case .character(let c):
             post(virtualKey: 0, unicode: Array(String(c).utf16))
             schedule(after: interval(after: c))
         }
@@ -128,31 +252,4 @@ final class Typewriter {
             e.post(tap: .cghidEventTap)
         }
     }
-}
-
-/// Diffs successive partial transcripts against what has already been typed.
-final class Differ {
-    private var typed: String = ""
-    private let writer: Typewriter
-
-    init(writer: Typewriter) { self.writer = writer }
-
-    func update(_ incoming: String) {
-        let a = Array(typed), b = Array(incoming)
-        var i = 0
-        while i < a.count && i < b.count && a[i] == b[i] { i += 1 }
-
-        let newChars = b[i...]
-        if !newChars.isEmpty {
-            writer.enqueue(newChars.map { Op.char($0) })
-        }
-        typed = incoming
-    }
-
-    func commit() {
-        writer.enqueue([.char(" ")])
-        typed = ""
-    }
-
-    func reset() { typed = "" }
 }
