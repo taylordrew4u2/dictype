@@ -10,10 +10,10 @@ enum Op {
 final class Typewriter {
 
     /// Average typing speed in words per minute.
-    var targetWPM: Double = 48
+    var targetWPM: Double = 62
 
     /// Rhythm variability. 0 is metronomic, 0.6+ looks erratic.
-    var jitterSigma: Double = 0.72
+    var jitterSigma: Double = 0.42
 
     /// Per-word chance of a 0.2–1.0s thinking pause.
     var hesitationOdds: Double = 0.11
