@@ -222,6 +222,21 @@ class TestWorkflows(unittest.TestCase):
         self.assertIn("hdiutil attach", body)
         self.assertIn("Contents/MacOS/DicType", body)
 
+    def test_release_workflow_mounts_the_dmg_it_publishes(self):
+        # Checking only the .app would leave the layout of the artifact people
+        # actually download unverified — and a nested layout is the exact bug
+        # that made the old DMG impossible to install from.
+        body = (self.WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+        self.assertIn("hdiutil attach", body)
+        self.assertIn("test -L /tmp/dictype-dmg/Applications", body)
+        self.assertIn("test -d /tmp/dictype-dmg/DicType.app", body)
+        # The mount check has to happen before the upload, or it proves nothing.
+        self.assertLess(
+            body.index("hdiutil attach"),
+            body.index("gh release upload"),
+            "the DMG must be verified before it is published",
+        )
+
 
 class TestSwiftSources(unittest.TestCase):
 
