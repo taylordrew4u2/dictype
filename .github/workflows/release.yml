@@ -69,6 +69,28 @@ jobs:
           codesign --verify --strict DicType.app
           lipo -archs DicType.app/Contents/MacOS/DicType
 
+          # Mount the exact image that is about to be published and prove it is
+          # installable. Verifying only the .app leaves the DMG's internal
+          # layout — the thing the user actually interacts with — unchecked,
+          # and a nested layout is precisely the bug this workflow replaced.
+          hdiutil attach DicType.dmg -nobrowse -readonly -mountpoint /tmp/dictype-dmg
+
+          # App and Applications symlink must both be at the image root, or
+          # there is nothing to drag onto anything.
+          test -d /tmp/dictype-dmg/DicType.app
+          test -L /tmp/dictype-dmg/Applications
+          test -x /tmp/dictype-dmg/DicType.app/Contents/MacOS/DicType
+          test -f /tmp/dictype-dmg/DicType.app/Contents/Resources/AppIcon.icns
+
+          # The signature must survive the round trip through the disk image.
+          codesign --verify --strict /tmp/dictype-dmg/DicType.app
+
+          # Confirm the version stamped into the published bundle.
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            /tmp/dictype-dmg/DicType.app/Contents/Info.plist
+
+          hdiutil detach /tmp/dictype-dmg
+
       - name: Publish to the release
         env:
           GH_TOKEN: ${{ github.token }}
