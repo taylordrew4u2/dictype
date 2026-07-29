@@ -47,23 +47,17 @@ If there's no release yet, or you'd rather compile from source:
 ```bash
 git clone https://github.com/taylordrew4u2/dictype.git
 cd dictype/DicType
-bash build-local.sh
+bash build-dmg.sh
 ```
 
-`DicType.app` appears in the folder. Drag it to Applications.
+`DicType.dmg` appears in the folder. Open it and drag `DicType` into Applications.
 
 This local build does not require Xcode. It only needs a Swift command-line toolchain from swift.org or a compatible Swift toolchain installed on your Mac.
 
-To build a locally packaged release-style app, run:
+To apply an optional ad-hoc code signature to the app before packaging it into the DMG, run:
 
 ```bash
-bash build-release.sh
-```
-
-To apply an optional ad-hoc code signature during that local package step, run:
-
-```bash
-SIGN_BUILD=1 bash build-release.sh
+SIGN_BUILD=1 bash build-dmg.sh
 ```
 
 ---
