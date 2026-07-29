@@ -2,7 +2,7 @@
 
 **Speak. Watch it type.**
 
-macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural rhythm, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
+macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural cadence, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
 
 <br>
 
@@ -36,7 +36,7 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 That's it. No security warnings, no right-clicking, no terminal. DicType is signed and notarized by Apple.
 
-The app opens to a polished setup walk-through that guides you through the permissions with clear icons and live status updates.
+The app opens to a polished setup walk-through with clear icons, rich status feedback, and a refined visual style that feels more like a modern desktop utility than a basic prototype.
 
 <br>
 
@@ -87,7 +87,7 @@ bash release.sh
 
 The script compiles, signs with the hardened runtime, notarizes, staples the ticket, builds a drag-to-Applications DMG, notarizes that too, and verifies Gatekeeper acceptance. Notarization takes one to five minutes per submission.
 
-Output: `DicType.dmg` and `DicType.zip`, both ready to attach to a GitHub release.
+Output: `DicType.dmg` (the drag-to-Applications installer) and `DicType.zip` (the app archive), both ready to attach to a GitHub release.
 
 ```bash
 gh release create v1.0.0 DicType.dmg DicType.zip \
@@ -101,7 +101,7 @@ gh release create v1.0.0 DicType.dmg DicType.zip \
 
 ## First launch
 
-DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process without feeling clunky or technical.
+DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process with a calm, premium feel.
 
 | | Permission | Why |
 |---|---|---|
@@ -109,7 +109,7 @@ DicType opens to a clean setup experience with three beautifully styled cards. E
 | 2 | **Speech Recognition** | To turn sound into words, on this Mac |
 | 3 | **Accessibility** | To type into your other apps |
 
-Accessibility is the fussy one. macOS opens System Settings and you flip the switch next to DicType by hand. If the switch won't hold, quit DicType entirely (`Cmd + Q`) and open it again.
+Accessibility is the fussy one. macOS opens System Settings and you flip the switch next to DicType by hand. If the switch won't stay enabled, quit DicType entirely (`Cmd + Q`) and open it again.
 
 Once all three are green, the setup screen disappears and DicType is ready to use.
 
@@ -124,11 +124,11 @@ Once all three are green, the setup screen disappears and DicType is ready to us
 
 Press the button again to stop.
 
-### Two dials
+### Two controls
 
-**Speed** — 25 to 110 words per minute. 40 reads as a slow typist, 62 as an average one, 90 as fast.
+**Speed** — 25 to 110 words per minute. 40 reads as a slow typist, 62 as an average one, and 90 feels fast.
 
-**Looseness** — how irregular the rhythm is. At `0.00` it's a metronome. Around `0.42` it reads as human. Above `0.60` it looks like someone typing after a long night.
+**Looseness** — how irregular the rhythm is. At `0.00` it feels mechanical, around `0.42` it feels human, and above `0.60` it becomes noticeably erratic.
 
 ---
 
@@ -136,7 +136,7 @@ Press the button again to stop.
 
 **Text stays on screen and builds naturally.** DicType keeps the visible transcript stable as you speak, so words don't vanish or get erased mid-stream. It still feels dynamic, with uneven pacing and tiny pauses that make the typing feel human.
 
-**Typing trails your voice.** Speech runs 500–800 characters per minute. Typing at a human pace runs more slowly, so DicType naturally adjusts its cadence to keep up without feeling perfectly mechanical.
+**Typing trails your voice.** Speech can move quickly, but DicType preserves a human rhythm rather than chasing it perfectly. That makes the output feel more natural, even when the recognition stream is changing in real time.
 
 **Keystrokes land wherever the cursor is.** Click into your target field before you start talking, or your words will go somewhere you didn't intend.
 
