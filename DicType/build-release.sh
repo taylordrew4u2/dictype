@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
 # Builds DicType.app for local release-style packaging.
-# This script is a renamed replacement for the old build-app.sh workflow.
 # It does not require a developer certificate for local builds.
 # Use SIGN_BUILD=1 to apply an optional ad-hoc signature.
 #
