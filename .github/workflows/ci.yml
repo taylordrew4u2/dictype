@@ -1,0 +1,76 @@
+name: CI
+
+# Builds the real app on every change so a broken build is caught here rather
+# than by someone downloading a DMG that does not launch.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build app and DMG
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Validate repository layout
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Build DicType.dmg
+        run: bash DicType/build-dmg.sh
+
+      - name: Verify the built bundle
+        run: |
+          cd DicType
+          set -euxo pipefail
+
+          # The executable must exist and be non-empty — the previous build
+          # system shipped a bundle with an empty MacOS directory.
+          test -x DicType.app/Contents/MacOS/DicType
+
+          # Universal binary so the DMG runs on Apple Silicon and Intel.
+          lipo -archs DicType.app/Contents/MacOS/DicType
+
+          # The icon must be a real .icns; macOS cannot read the SVG.
+          test -f DicType.app/Contents/Resources/AppIcon.icns
+          file DicType.app/Contents/Resources/AppIcon.icns
+
+          # Signature must verify, otherwise permission grants do not stick.
+          codesign --verify --strict --verbose=2 DicType.app
+
+          # Required Info.plist keys.
+          for key in CFBundleExecutable CFBundleIdentifier NSPrincipalClass \
+                     CFBundleIconFile NSMicrophoneUsageDescription \
+                     NSSpeechRecognitionUsageDescription; do
+            /usr/libexec/PlistBuddy -c "Print :$key" DicType.app/Contents/Info.plist
+          done
+
+      - name: Verify the DMG layout
+        run: |
+          cd DicType
+          set -euxo pipefail
+          hdiutil attach DicType.dmg -nobrowse -readonly -mountpoint /tmp/dictype-dmg
+
+          # The app and the Applications symlink must both sit at the root of
+          # the image, or there is nothing to drag onto anything.
+          test -d /tmp/dictype-dmg/DicType.app
+          test -L /tmp/dictype-dmg/Applications
+          test -x /tmp/dictype-dmg/DicType.app/Contents/MacOS/DicType
+
+          hdiutil detach /tmp/dictype-dmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DicType-dmg
+          path: DicType/DicType.dmg
+          if-no-files-found: error

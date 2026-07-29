@@ -2,8 +2,6 @@
 
 **Speak. Watch it type.**
 
-This repository now uses a plain build flow powered by Python so it no longer depends on Swift or Xcode for the build step. The current build entry point is [build.py](build.py), which produces a simple build artifact under [build/dist](build/dist).
-
 macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural cadence, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
 
 <br>
@@ -20,7 +18,7 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 |              |                                                            |
 | ------------ | ---------------------------------------------------------- |
-| **Platform** | macOS 13 Ventura or newer                                  |
+| **Platform** | macOS 13 Ventura or newer, Apple Silicon or Intel          |
 | **Privacy**  | Speech is transcribed on your Mac. Nothing is uploaded.    |
 | **Works in** | Notes, Slack, Xcode, Mail, browsers, anywhere you can type |
 | **Cost**     | Free, MIT licensed                                         |
@@ -29,79 +27,69 @@ macOS Dictation drops finished words onto the screen all at once. DicType doesn'
 
 ## Install
 
-### The easy way
+### Download the installer
 
-1. Go to the **[Releases](releases)** page.
-2. Download the latest **[DicType.dmg](releases/latest)** installer from the releases page.
-3. Open it and drag **DicType** onto the **Applications** shortcut.
-4. Double-click DicType.
+1. Download **[DicType.dmg](https://github.com/taylordrew4u2/dictype/releases/latest/download/DicType.dmg)** — or pick a specific build from the **[Releases](https://github.com/taylordrew4u2/dictype/releases)** page.
+2. Open the DMG and drag **DicType** onto the **Applications** shortcut.
+3. Clear the download quarantine flag once, in Terminal:
 
-That's it. No security warnings, no right-clicking, no terminal. Official releases are signed and notarized by Apple, while local builds work without a developer certificate.
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/DicType.app
+   ```
 
-The app opens to a polished setup walk-through with clear icons, rich status feedback, and a refined visual style that feels more like a modern desktop utility than a basic prototype. The packaged app also ships with a custom icon so it looks polished in the Dock, Applications folder, and Finder.
+4. Open DicType from Applications.
+
+Nothing to compile, no toolchain, no Xcode.
+
+**Why step 3?** macOS quarantines everything downloaded from the internet and refuses to open it unless the build was notarized by Apple, which requires a paid Apple Developer Program membership. DicType's public builds are signed but not notarized, so without this step macOS shows *"DicType is damaged and can't be opened."* The command clears that flag. It is a one-time step per install.
+
+If a release has no `DicType.dmg` attached, no installer was ever published for that build — use the latest release, or build one yourself in a couple of minutes with the steps below.
 
 <br>
 
 ### Building it yourself
 
-Build the project from the repository root with:
+You need the Apple **Command Line Tools**. This is *not* Xcode — it is a smaller download that needs no Apple ID and no App Store:
 
 ```bash
-python3 build.py
+xcode-select --install
 ```
 
-This produces a build artifact in [build/dist](build/dist). The build no longer requires Swift or Xcode.
-
-You can also run:
+Then, from the repository root:
 
 ```bash
-make
+make dmg
 ```
 
----
+That compiles the Swift sources, assembles `DicType.app`, signs it, and packages `DicType/DicType.dmg`. Open it and drag DicType to Applications as above — a DMG you built locally is not quarantined, so you can skip the `xattr` step.
 
-## Releasing a signed build
+Other targets:
 
-_Maintainer only. Requires an Apple Developer Program membership._
+| Command      | What it does                                                          |
+| ------------ | --------------------------------------------------------------------- |
+| `make dmg`   | Build the app and package the installer                                |
+| `make app`   | Build `DicType.app` only                                               |
+| `make test`  | Run the repository checks                                              |
+| `make icon`  | Regenerate `AppIcon.icns` from the SVG (needs `pip install cairosvg`)   |
+| `make clean` | Delete build output                                                    |
 
-**One-time setup**
+The scripts behind these are [DicType/build.sh](DicType/build.sh) and [DicType/build-dmg.sh](DicType/build-dmg.sh). Both produce a **universal binary**, so one DMG runs natively on Apple Silicon and Intel.
 
-1. Create a **Developer ID Application** certificate — Xcode → Settings → Accounts → Manage Certificates → **+**, or at [developer.apple.com](https://developer.apple.com/account/resources/certificates).
-2. Generate an app-specific password at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords.
-3. Store notarization credentials in your keychain:
+DicType is written in Swift and SwiftUI and links against AppKit, AVFoundation and Speech, so a Swift compiler and the macOS SDK are genuinely required to build it. The Command Line Tools provide both. If you'd rather not install anything, download the DMG instead — that is what it is there for.
 
-```bash
-xcrun notarytool store-credentials "dictype" \
-  --apple-id "you@example.com" \
-  --team-id "YOURTEAMID" \
-  --password "abcd-efgh-ijkl-mnop"
-```
+<br>
 
-Your Team ID is on the [membership page](https://developer.apple.com/account#MembershipDetailsCard).
+### Building from CI
 
-**Every release**
+Every push builds the app and a DMG on a macOS runner and uploads it as a workflow artifact — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
-```bash
-bash release.sh
-```
-
-The script compiles, signs with the hardened runtime, notarizes, staples the ticket, builds a drag-to-Applications DMG, notarizes that too, and verifies Gatekeeper acceptance. Notarization takes one to five minutes per submission.
-
-Output: `DicType.dmg` (the drag-to-Applications installer) and `DicType.zip` (the app archive), both ready to attach to a GitHub release.
-
-```bash
-gh release create v1.0.0 DicType.dmg DicType.zip \
-   --title "DicType 1.0.0" \
-   --notes "Speak, and watch it type."
-```
-
-**Note on sandboxing.** DicType is signed with the hardened runtime but is deliberately _not_ sandboxed. A sandboxed app cannot post keyboard events into other applications, which is the entire function of this tool. That rules out Mac App Store distribution; direct download is the only channel.
+To publish an installer to a release, push a tag such as `v1.1.1`, or run the **Release** workflow by hand from the Actions tab and give it a tag name. [.github/workflows/release.yml](.github/workflows/release.yml) builds the DMG and attaches it to that release, creating the release first if it does not exist yet. Running it against a tag that already has a release adds the DMG to the existing one.
 
 ---
 
 ## First launch
 
-DicType opens to a clean setup experience with three beautifully styled cards. Each one updates as you approve it, and the interface walks you through the process with a calm, premium feel and recognizable iconography throughout.
+DicType opens to a setup screen with three cards. Each updates as you approve it.
 
 |     | Permission             | Why                                   |
 | --- | ---------------------- | ------------------------------------- |
@@ -112,6 +100,8 @@ DicType opens to a clean setup experience with three beautifully styled cards. E
 Accessibility is the fussy one. macOS opens System Settings and you flip the switch next to DicType by hand. If the switch won't stay enabled, quit DicType entirely (`Cmd + Q`) and open it again.
 
 Once all three are green, the setup screen disappears and DicType is ready to use.
+
+> **Note on rebuilds.** macOS ties Accessibility and Microphone grants to an app's code signature. Locally built copies are ad-hoc signed, and that signature changes on every rebuild, so macOS may ask you to re-approve DicType after `make dmg`. Remove the old entry in System Settings → Privacy & Security → Accessibility and add the new one. Builds installed from a release DMG are not affected.
 
 ---
 
@@ -145,9 +135,24 @@ Press the button again to stop.
 ## Troubleshooting
 
 <details>
+<summary><b>"DicType is damaged and can't be opened"</b></summary>
+
+This is the download quarantine flag, not a corrupt file. Clear it:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/DicType.app
+```
+
+Then open the app again. See the note under **Install** for why this is necessary.
+
+</details>
+
+<details>
 <summary><b>The setup screen won't turn green</b></summary>
 
 Quit DicType completely with `Cmd + Q` — closing the window isn't enough — then reopen it. macOS sometimes doesn't hand a running app its new permissions.
+
+If you just rebuilt the app yourself, the ad-hoc signature changed and macOS treats it as a different app. Remove the stale DicType entry in System Settings → Privacy & Security → Accessibility, then add the new build.
 
 </details>
 
@@ -166,9 +171,22 @@ Check that the right microphone is selected in System Settings → Sound → Inp
 </details>
 
 <details>
+<summary><b>The app has no icon</b></summary>
+
+The bundle must contain `Contents/Resources/AppIcon.icns`. If it is missing, regenerate it and rebuild:
+
+```bash
+pip install cairosvg
+make icon
+make dmg
+```
+
+</details>
+
+<details>
 <summary><b>I want a different language</b></summary>
 
-Open the app configuration in the repository and adjust the language settings there before rebuilding with `python3 build.py`.
+Change `localeID` in [DicType/Sources/DicType/DictationEngine.swift](DicType/Sources/DicType/DictationEngine.swift) from `"en-US"` to the locale you want, then rebuild with `make dmg`. The language needs an on-device speech model installed under System Settings → Keyboard → Dictation.
 
 </details>
 
@@ -184,6 +202,47 @@ Open the app configuration in the repository and adjust the language settings th
 
 ---
 
+## Releasing a signed and notarized build
+
+_Maintainer only. Requires an Apple Developer Program membership._
+
+Notarization is the only thing that removes the quarantine prompt for people downloading the DMG. Everything else works without it.
+
+**One-time setup**
+
+1. Create a **Developer ID Application** certificate — Xcode → Settings → Accounts → Manage Certificates → **+**, or at [developer.apple.com](https://developer.apple.com/account/resources/certificates).
+2. Generate an app-specific password at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords.
+3. Store notarization credentials in your keychain:
+
+```bash
+xcrun notarytool store-credentials "dictype" \
+  --apple-id "you@example.com" \
+  --team-id "YOURTEAMID" \
+  --password "abcd-efgh-ijkl-mnop"
+```
+
+Your Team ID is on the [membership page](https://developer.apple.com/account#MembershipDetailsCard).
+
+**Every release**
+
+```bash
+bash DicType/release.sh
+```
+
+[DicType/release.sh](DicType/release.sh) compiles, signs with the hardened runtime, notarizes, staples the ticket, builds a drag-to-Applications DMG, notarizes that too, and verifies Gatekeeper acceptance. Notarization takes one to five minutes per submission.
+
+Output lands in [assets/](assets): `DicType.dmg` (the installer) and `DicType.zip` (the app archive), both ready to attach to a GitHub release.
+
+```bash
+gh release create v1.1.0 assets/DicType.dmg assets/DicType.zip \
+   --title "DicType 1.1.0" \
+   --notes "Speak, and watch it type."
+```
+
+**Note on sandboxing.** DicType is signed with the hardened runtime but is deliberately _not_ sandboxed. A sandboxed app cannot post keyboard events into other applications, which is the entire function of this tool. That rules out Mac App Store distribution; direct download is the only channel.
+
+---
+
 ## Roadmap
 
 - [ ] Menu bar mode with a global push-to-talk hotkey
@@ -194,4 +253,4 @@ Open the app configuration in the repository and adjust the language settings th
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](DicType/LICENSE).

@@ -12,19 +12,38 @@
     <string>DicType</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.1.0</string>
     <key>CFBundleVersion</key>
     <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+
+    <!-- Required for a hand-assembled bundle: without it AppKit does not know
+         which class to instantiate as the application object, and the app can
+         launch without a menu bar or fail to come to the front. -->
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <!-- Resolves to Resources/AppIcon.icns. macOS cannot read SVG icons, so the
+         .icns is generated from AppIcon.svg by tools/make-icon.py. -->
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+
     <key>NSMicrophoneUsageDescription</key>
     <string>DicType listens to your voice so it can type what you say.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>DicType converts your speech into text on this Mac.</string>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT licensed. See LICENSE.</string>
 </dict>
 </plist>
