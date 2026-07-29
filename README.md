@@ -2,7 +2,7 @@
 
 **Speak. Watch it type.**
 
-This repository now uses a plain build flow powered by Python so it no longer depends on Swift or Xcode for the build step. The current build entry point is [build.py](build.py), which produces a simple app-style bundle under [build/dist](build/dist).
+This repository now uses a plain build flow powered by Python so it no longer depends on Swift or Xcode for the build step. The current build entry point is [build.py](build.py), which produces a simple build artifact under [build/dist](build/dist).
 
 macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural cadence, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
 
@@ -50,7 +50,7 @@ Build the project from the repository root with:
 python3 build.py
 ```
 
-This produces a runnable app-style bundle in [build/dist](build/dist). The build no longer requires Swift or Xcode.
+This produces a build artifact in [build/dist](build/dist). The build no longer requires Swift or Xcode.
 
 You can also run:
 
@@ -168,7 +168,7 @@ Check that the right microphone is selected in System Settings → Sound → Inp
 <details>
 <summary><b>I want a different language</b></summary>
 
-Open `Sources/DicType/DictationEngine.swift`, change `localeID` from `"en-US"`, and rebuild with `bash build-local.sh`.
+Open the app configuration in the repository and adjust the language settings there before rebuilding with `python3 build.py`.
 
 </details>
 
