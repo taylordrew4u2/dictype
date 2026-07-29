@@ -87,7 +87,7 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 28)
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 10)
 
             footer
         }
@@ -130,7 +130,7 @@ struct OnboardingView: View {
             ProgressPips(total: 3, filled: perms.grantedCount)
                 .padding(.top, 2)
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, 20)
     }
 
     private var footer: some View {
@@ -223,13 +223,14 @@ struct StepCard: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.045))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(done ? Palette.mint.opacity(0.35) : Color.white.opacity(0.07),
                                 lineWidth: 1)
                 )
+                .shadow(color: Color.black.opacity(0.16), radius: 8, x: 0, y: 4)
         )
         .animation(.easeInOut(duration: 0.25), value: done)
     }
@@ -266,13 +267,20 @@ struct ConsoleView: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            HStack {
-                Image(systemName: "keyboard.badge.waveform")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Palette.emberSoft)
-                Text("DicType")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+            HStack(alignment: .center) {
+                HStack(spacing: 8) {
+                    Image(systemName: "keyboard.badge.waveform")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Palette.emberSoft)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("DicType")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("Human-like voice typing")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Palette.dim)
+                    }
+                }
                 Spacer()
                 Capsule()
                     .fill(Palette.mint.opacity(0.18))
@@ -309,6 +317,17 @@ struct ConsoleView: View {
 
             Spacer()
         }
+        .padding(.vertical, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.16), radius: 20, x: 0, y: 12)
+        )
+        .padding(.horizontal, 24)
     }
 
     private var micButton: some View {
@@ -371,7 +390,7 @@ struct ConsoleView: View {
             }
         }
         .padding(.horizontal, 28)
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 
     private func labelled<C: View>(_ title: String,

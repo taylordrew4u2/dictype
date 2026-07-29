@@ -9,9 +9,9 @@ enum PermissionState {
 
     var label: String {
         switch self {
-        case .granted:       return "Granted"
-        case .denied:        return "Blocked"
-        case .notDetermined: return "Needed"
+        case .granted:       return "Ready"
+        case .denied:        return "Needs attention"
+        case .notDetermined: return "Pending"
         }
     }
 }
@@ -36,6 +36,10 @@ final class Permissions: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.refresh()
         }
+    }
+
+    deinit {
+        timer?.invalidate()
     }
 
     func refresh() {
