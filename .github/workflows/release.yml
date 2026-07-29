@@ -1,0 +1,110 @@
+name: Release
+
+# Builds DicType.dmg on a macOS runner and attaches it to a GitHub Release, so
+# people can download a working installer without installing any toolchain.
+#
+# Two ways to run it:
+#   • push a tag such as v1.1.1
+#   • Actions → Release → "Run workflow", and type an existing or new tag
+#     (this is how you attach a DMG to a release that was published without one)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and attach the DMG to (e.g. v1.1.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish DMG
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          # CFBundleShortVersionString must be dot-separated digits, so strip a
+          # leading "v" and anything after a hyphen (v1.2.0-beta -> 1.2.0).
+          VERSION="${TAG#v}"
+          VERSION="${VERSION%%-*}"
+          case "$VERSION" in
+            *[!0-9.]*|"") VERSION="1.1.0" ;;
+          esac
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Tag $TAG -> version $VERSION"
+
+      - name: Build DMG
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: bash DicType/build-dmg.sh
+
+      - name: Package plain app archive
+        run: |
+          cd DicType
+          ditto -c -k --keepParent DicType.app DicType.zip
+
+      - name: Verify artifacts
+        run: |
+          cd DicType
+          set -euxo pipefail
+          test -f DicType.dmg
+          test -f DicType.zip
+          codesign --verify --strict DicType.app
+          lipo -archs DicType.app/Contents/MacOS/DicType
+
+      - name: Publish to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd DicType
+
+          # Quoted heredoc: nothing inside is expanded by the shell, so the
+          # backticks and braces in the notes survive verbatim.
+          cat > /tmp/notes.md <<'NOTES'
+          Speak, and watch it type.
+
+          ## Install
+
+          1. Download `DicType.dmg` below.
+          2. Open it and drag **DicType** onto the **Applications** shortcut.
+          3. Launch DicType from Applications.
+
+          This build is ad-hoc signed but not notarized by Apple, so macOS
+          quarantines it after download. Clear the flag once after installing:
+
+          ```
+          xattr -dr com.apple.quarantine /Applications/DicType.app
+          ```
+
+          Then grant Microphone, Speech Recognition and Accessibility when the
+          app asks. Universal binary — runs natively on Apple Silicon and Intel.
+          NOTES
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "DicType $VERSION" \
+              --notes-file /tmp/notes.md
+          fi
+
+          gh release upload "$TAG" DicType.dmg DicType.zip --clobber
+          echo "Attached DicType.dmg and DicType.zip to $TAG"

@@ -1,74 +1,77 @@
 #!/usr/bin/env bash
 #
-# Builds DicType.app and packages it into a drag-to-Applications DMG.
-# This is a standalone local packaging script. It does not require Xcode.
-# Use SIGN_BUILD=1 to apply an optional ad-hoc signature to the app.
+# build-dmg.sh — build DicType.app and package it into a drag-to-Applications DMG.
 #
-#   bash build-dmg.sh
-#   SIGN_BUILD=1 bash build-dmg.sh
+# Xcode.app is NOT required; the Command Line Tools are enough. See build.sh.
+#
+# Usage:
+#     bash build-dmg.sh
+#
+# Environment is passed straight through to build.sh (SIGN_IDENTITY, HARDENED,
+# APP_VERSION, BUILD_NUMBER, UNIVERSAL). OUTPUT_DIR sets where the DMG lands.
 #
 set -euo pipefail
 
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 APP_NAME="DicType"
 BUNDLE="${APP_NAME}.app"
-DMG="${APP_NAME}.dmg"
+OUTPUT_DIR="${OUTPUT_DIR:-.}"
+DMG="${OUTPUT_DIR}/${APP_NAME}.dmg"
+
 BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; RESET=$'\033[0m'
+say()  { printf "%s▸ %s%s\n" "$BOLD" "$1" "$RESET"; }
+note() { printf "%s  %s%s\n" "$DIM" "$1" "$RESET"; }
+die()  { printf "\nError: %s\n" "$1" >&2; exit 1; }
 
-say()  { printf "%s%s%s\n" "$BOLD" "$1" "$RESET"; }
-note() { printf "%s%s%s\n" "$DIM" "$1" "$RESET"; }
-die()  { printf "Error: %s\n" "$1" >&2; exit 1; }
+command -v hdiutil >/dev/null 2>&1 || die "hdiutil not found. This script only runs on macOS."
 
-[[ "$(uname -s)" == "Darwin" ]] || die "macOS only."
-command -v swift >/dev/null 2>&1 || die "Swift not found. Install a Swift toolchain from swift.org or Xcode."
-command -v hdiutil >/dev/null 2>&1 || die "hdiutil not found."
-MACOS_MAJOR="$(sw_vers -productVersion | cut -d. -f1)"
-(( MACOS_MAJOR >= 13 )) || die "macOS 13 or newer required. Found $(sw_vers -productVersion)."
+bash build.sh
 
-say "Compiling..."
-swift build -c release
+[[ -d "$BUNDLE" ]] || die "${BUNDLE} was not produced."
 
-BIN="$(swift build -c release --show-bin-path)/${APP_NAME}"
-[[ -x "$BIN" ]] || die "Build produced no binary."
-
-say "Assembling ${BUNDLE}..."
-rm -rf "$BUNDLE"
-mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
-cp "$BIN" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
-cp Resources/Info.plist "${BUNDLE}/Contents/Info.plist"
-cp Resources/AppIcon.svg "${BUNDLE}/Contents/Resources/AppIcon.svg"
-printf 'APPL????' > "${BUNDLE}/Contents/PkgInfo"
-
-if [[ "${SIGN_BUILD:-0}" == "1" ]]; then
-  if command -v codesign >/dev/null 2>&1; then
-    say "Signing ${BUNDLE} (ad-hoc)..."
-    if ! codesign --force --deep --sign - "$BUNDLE" 2>/dev/null; then
-      note "codesign failed; continuing with unsigned app."
-    fi
-  else
-    note "codesign not found; continuing with unsigned app."
-  fi
-fi
-
-say "Building ${DMG}..."
+say "Building ${APP_NAME}.dmg"
+mkdir -p "$OUTPUT_DIR"
 rm -f "$DMG"
+
 STAGING="$(mktemp -d)"
-mkdir -p "$STAGING/$APP_NAME"
-cp -R "$BUNDLE" "$STAGING/$APP_NAME/"
+trap 'rm -rf "$STAGING"' EXIT
+
+# The app and the Applications symlink both sit at the root of the disk image.
+# Nesting the app inside a subfolder — as this script previously did — means the
+# user opens the DMG and sees a folder instead of something they can drag across.
+cp -R "$BUNDLE" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
 hdiutil create -volname "$APP_NAME" \
                -srcfolder "$STAGING" \
+               -fs HFS+ \
                -ov -format UDZO \
                "$DMG" >/dev/null
-rm -rf "$STAGING"
 
-printf "\n%s%s built.%s\n" "$GREEN$BOLD" "$DMG" "$RESET"
+[[ -f "$DMG" ]] || die "DMG was not created."
+
+if [[ "${SIGN_IDENTITY:--}" != "-" ]]; then
+  say "Signing disk image"
+  codesign --force --sign "${SIGN_IDENTITY}" "$DMG"
+fi
+
+SIZE="$(du -h "$DMG" | cut -f1 | tr -d ' ')"
+printf "\n%s%s✓ %s built (%s)%s\n\n" "$GREEN" "$BOLD" "$DMG" "$SIZE" "$RESET"
+
 cat <<EOS
-Next:
+Install it:
 
-  1. Open ${DMG}.
-  2. Drag ${APP_NAME} into Applications.
+  1. Open ${DMG}
+  2. Drag ${APP_NAME} onto the Applications shortcut
+  3. Launch DicType from Applications
 
+This build is ad-hoc signed, not notarised by Apple. macOS quarantines files
+downloaded from the internet, so a DMG built here and then transferred to
+another Mac needs the quarantine flag cleared once:
+
+  xattr -dr com.apple.quarantine /Applications/${BUNDLE}
+
+A DMG you built and opened on this machine is not quarantined and needs no
+such step.
 EOS
-
-exit 0
