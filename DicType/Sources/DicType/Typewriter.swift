@@ -7,6 +7,11 @@ enum Keystroke: Equatable {
     case backspace
 }
 
+extension Character {
+    /// Ends a sentence, so what precedes it can be treated as settled.
+    var isSentenceEnd: Bool { self == "." || self == "!" || self == "?" }
+}
+
 /// Emits synthesized keystrokes at a human, log-normally distributed cadence.
 ///
 /// The typewriter owns the text it is meant to have produced, rather than a
@@ -14,15 +19,26 @@ enum Keystroke: Equatable {
 /// already reported — "the cow" becomes "the cows" once more audio arrives — so
 /// the visible output has to be able to move backwards, not only forwards.
 ///
-/// Three pieces of state describe that:
+/// But it must not move backwards very far. A recogniser keeps revising its
+/// whole utterance until it declares the result final, so unbounded correction
+/// means a late change near the start wipes out everything typed since.
 ///
-///   text           the full intended output
-///   emitted        how much of `text` has physically been typed
-///   revisableFrom  index before which text is final and must never be undone
+/// Four pieces of state describe the balance:
 ///
-/// A revision only costs backspaces for characters that were actually typed.
-/// Revising text that is still waiting its turn is free, which is the common
-/// case when speech outruns the fingers.
+///   text        the full intended output
+///   emitted     how much of `text` has physically been typed
+///   liveStart   where `text` stops being final and starts mirroring the
+///               transcript tail; nothing before it is ever backspaced
+///   baseline    the transcript prefix already treated as final
+///
+/// `baseline` is a string rather than an index because the transcript changes
+/// length as the recogniser revises, so an index into our output stops pointing
+/// at the same place in the transcript. Holding the settled prefix as text keeps
+/// the two exactly in step.
+///
+/// A revision only costs backspaces for characters that were actually typed, and
+/// never more than `revisionWindow` of them. Revising text that is still waiting
+/// its turn is free, which is the common case when speech outruns the fingers.
 final class Typewriter {
 
     // MARK: - Tunables
@@ -55,8 +71,20 @@ final class Typewriter {
 
     private var text: [Character] = []
     private var emitted = 0
-    private var revisableFrom = 0
     private var backspaceDebt = 0
+
+    /// Where `text` stops being final and starts mirroring the recogniser's
+    /// transcript tail. Nothing before this can ever be backspaced.
+    private var liveStart = 0
+
+    /// The transcript prefix already treated as final.
+    ///
+    /// The live region of `text` always mirrors the transcript tail *exactly*,
+    /// which is what keeps the two in step. Settling therefore cannot be a bare
+    /// index: the transcript changes length as the recogniser revises, so an
+    /// index into our output stops pointing at the same place in the transcript.
+    /// Holding the settled prefix as a string keeps the mapping exact.
+    private var baseline = ""
 
     private let lock = NSLock()
     private let src = CGEventSource(stateID: .combinedSessionState)
@@ -65,27 +93,52 @@ final class Typewriter {
     /// Virtual key code for Delete (backspace). Carbon's kVK_Delete.
     private let deleteKey: CGKeyCode = 51
 
+    /// How far back the recogniser may still revise, in characters.
+    ///
+    /// Roughly the last four words. This is the hard ceiling on how much text a
+    /// single correction can erase; everything older has settled. Raising it
+    /// buys more accurate corrections at the cost of more visible rewriting.
+    private let revisionWindow = 24
+
     init() { schedule(after: 30) }
 
     // MARK: - Input
 
-    /// Replaces the revisable tail with `incoming`.
+    /// Takes the recogniser's latest transcript for the current utterance.
     ///
-    /// Call this with each partial transcript. Characters shared with what is
-    /// already on screen are left alone; anything typed past the point where the
-    /// two diverge is scheduled for deletion.
+    /// The whole transcript is passed every time, not just the new part. The
+    /// live region of `text` is made to mirror its tail exactly, so the two stay
+    /// in step; only characters already on screen that no longer match are
+    /// scheduled for deletion.
     func setLive(_ incoming: String) {
-        let new = Array(incoming)
-
         lock.lock()
         defer { lock.unlock() }
 
-        let existing = Array(text[revisableFrom...])
+        // Settle first, using what has actually been typed since the last call.
+        // Doing this afterwards instead would leave the floor a beat behind and
+        // let a correction reach back further than intended.
+        settle()
+
+        let tail: [Character]
+        if incoming.hasPrefix(baseline) {
+            tail = Array(incoming.dropFirst(baseline.count))
+        } else {
+            // The recogniser rewrote something we had already settled. Neither
+            // erasing it nor appending its version is right — one destroys text
+            // the user watched appear, the other duplicates it. Keep ours, adopt
+            // its transcript as the new baseline, and emit nothing for the
+            // overlap. Whatever it says next simply continues from here.
+            baseline = incoming
+            liveStart = text.count
+            tail = []
+        }
+
+        let existing = Array(text[liveStart...])
         var i = 0
-        while i < existing.count && i < new.count && existing[i] == new[i] { i += 1 }
+        while i < existing.count && i < tail.count && existing[i] == tail[i] { i += 1 }
 
         // Absolute index of the first character the two versions disagree on.
-        let divergence = revisableFrom + i
+        let divergence = liveStart + i
 
         // Only characters already on screen need deleting. `emitted` is the
         // logical cursor; the physical one sits `backspaceDebt` further right
@@ -95,7 +148,59 @@ final class Typewriter {
             emitted = divergence
         }
 
-        text.replaceSubrange(revisableFrom..., with: new)
+        text.replaceSubrange(liveStart..., with: tail)
+    }
+
+    /// Moves the settled boundary forward so the recogniser can no longer take
+    /// back text the user has already watched appear.
+    ///
+    /// A recogniser revises its whole utterance until it declares the result
+    /// final, which can be a long time. Left unbounded, a late change near the
+    /// start — a capitalisation, a re-segmented word — diverges at a low index
+    /// and erases everything typed since. That is the "it goes back and erases
+    /// what I just said" behaviour.
+    ///
+    /// Two rules move the boundary, and nothing behind it is ever backspaced:
+    ///
+    ///   * **Punctuation.** A full stop, question mark or exclamation mark that
+    ///     has already been typed settles the sentence it ends. Saying "period"
+    ///     locks in what came before it.
+    ///   * **Distance.** Anything further back than `revisionWindow` characters
+    ///     settles anyway, because recognisers revise the last word or two
+    ///     constantly and older text almost never.
+    ///
+    /// Only text already on screen settles. Text still queued costs nothing to
+    /// revise, so it stays free, which is the common case when speech outruns
+    /// the fingers.
+    private func settle() {
+        let typed = min(emitted, text.count)
+        var split = liveStart
+
+        // Rule 1: the last sentence terminator that has actually been typed.
+        var i = typed - 1
+        while i >= liveStart {
+            if text[i].isSentenceEnd {
+                split = i + 1
+                break
+            }
+            i -= 1
+        }
+
+        // Rule 2: distance from the live edge.
+        split = max(split, min(typed, text.count - revisionWindow))
+
+        guard split > liveStart else { return }
+        baseline.append(contentsOf: text[liveStart..<split])
+        liveStart = split
+    }
+
+    /// Drops settled characters from the front so a long dictation session does
+    /// not grow the buffer without bound. Indices shift, so `emitted` moves too.
+    private func trimSettledPrefix() {
+        guard liveStart > 0, backspaceDebt == 0, emitted >= liveStart else { return }
+        text.removeFirst(liveStart)
+        emitted -= liveStart
+        liveStart = 0
     }
 
     /// Marks everything typed so far as final and starts a new utterance.
@@ -105,7 +210,9 @@ final class Typewriter {
     func commitLive() {
         lock.lock()
         text.append(" ")
-        revisableFrom = text.count
+        liveStart = text.count
+        // A finished utterance means the next transcript starts from nothing.
+        baseline = ""
         lock.unlock()
     }
 
@@ -114,7 +221,8 @@ final class Typewriter {
         lock.lock()
         text.removeAll()
         emitted = 0
-        revisableFrom = 0
+        liveStart = 0
+        baseline = ""
         backspaceDebt = 0
         lock.unlock()
     }
@@ -215,13 +323,9 @@ final class Typewriter {
             return .character(c)
         }
 
-        // Idle. Everything committed has been typed, so the finalised prefix can
-        // be dropped and the buffer stays bounded over a long dictation session.
-        if revisableFrom > 0 {
-            text.removeFirst(revisableFrom)
-            emitted -= revisableFrom
-            revisableFrom = 0
-        }
+        // Idle. Everything settled has been typed, so the finalised prefix can be
+        // dropped and the buffer stays bounded over a long dictation session.
+        trimSettledPrefix()
         return nil
     }
 

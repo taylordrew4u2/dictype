@@ -124,7 +124,9 @@ Press the button again to stop.
 
 ## What to expect
 
-**Text stays on screen and builds naturally.** DicType keeps the visible transcript stable as you speak, so words don't vanish or get erased mid-stream. It still feels dynamic, with uneven pacing and tiny pauses that make the typing feel human.
+**Text settles as you speak, and stays settled.** Speech recognisers revise what they have already reported — a word becomes plural, a first word gets capitalised — so DicType can correct the last few characters it typed. It will not reach further back than that. Once you say a full stop, question mark or exclamation mark, the sentence before it is locked and cannot be taken back, even if the recogniser later changes its mind about it. Anything more than about four words back is locked for the same reason.
+
+The trade-off is deliberate: a correction the recogniser makes to old text is ignored rather than applied, because watching a finished sentence get erased and retyped is worse than a word left as you first saw it.
 
 **Typing trails your voice.** Speech can move quickly, but DicType preserves a human rhythm rather than chasing it perfectly. That makes the output feel more natural, even when the recognition stream is changing in real time.
 
