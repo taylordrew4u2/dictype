@@ -2,7 +2,11 @@
 
 **Speak. Watch it type.**
 
+[![CI](https://github.com/taylordrew4u2/dictype/actions/workflows/ci.yml/badge.svg)](https://github.com/taylordrew4u2/dictype/actions/workflows/ci.yml)
+
 macOS Dictation drops finished words onto the screen all at once. DicType doesn't. It listens, then types what you said one character at a time — with a natural cadence, tiny hesitations, and the occasional human-like hitch that makes it feel lived-in rather than robotic.
+
+A native macOS app in Swift and SwiftUI. Synthesises real keystrokes, so it types into any application rather than into a box of its own. See [Design notes](#design-notes) for the part that turned out to be hard.
 
 <br>
 
@@ -173,6 +177,24 @@ Check that the right microphone is selected in System Settings → Sound → Inp
 </details>
 
 <details>
+<summary><b>A word came out wrong and never got fixed</b></summary>
+
+Expected, and deliberate. Once text has settled — behind a full stop, question mark or exclamation mark, or more than about four words back — DicType will not go back and change it, even if the recogniser later decides it heard something different. The alternative is watching a finished sentence get erased and retyped, which is worse.
+
+If you want it to correct more of what it typed, raise `revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) and rebuild. See **Tuning** under *How it works*.
+
+</details>
+
+<details>
+<summary><b>It goes back and deletes what I just said</b></summary>
+
+A correction should never reach back more than about four words, and never behind a full stop, question mark or exclamation mark. If you are seeing more than that, you are probably on an older build — check **DicType → About**, or reinstall from the [latest release](https://github.com/taylordrew4u2/dictype/releases/latest/download/DicType.dmg).
+
+To make corrections smaller still, lower `revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) and rebuild.
+
+</details>
+
+<details>
 <summary><b>The app has no icon</b></summary>
 
 The bundle must contain `Contents/Resources/AppIcon.icns`. If it is missing, regenerate it and rebuild:
@@ -197,10 +219,103 @@ Change `localeID` in [DicType/Sources/DicType/DictationEngine.swift](DicType/Sou
 ## How it works
 
 1. `AVAudioEngine` captures the microphone.
-2. `SFSpeechRecognizer` returns partial transcripts as you speak.
-3. Each transcript is compared to the last confirmed text, and only the newly spoken characters are queued so the visible output stays stable.
-4. The queue drains on a human-like timing model with uneven pauses, longer gaps after punctuation or word boundaries, and the occasional micro-hitch.
-5. Each character is posted to the system as a `CGEvent`, indistinguishable from a real keypress.
+2. `SFSpeechRecognizer` returns partial transcripts as you speak. Each one is the *whole* utterance so far, not just the new part, and it keeps changing — words get re-segmented, plurals appear, the first word gets capitalised — right up until the recogniser declares the result final.
+3. DicType keeps its own copy of what it intends to have typed, along with a cursor for how much of that has actually reached the screen. The tail of that copy mirrors the latest transcript, so a revision to something not yet typed costs nothing at all.
+4. Text behind a full stop, question mark or exclamation mark — and anything more than about four words back — is *settled*. Settled text is never taken back, which is what stops a late revision erasing a finished sentence. The settled part is tracked as text rather than as a position, because the transcript changes length as it is revised and a position would drift out of step with it.
+5. The remainder drains on a human-like timing model: uneven pauses, longer gaps after punctuation or word boundaries, the occasional micro-hitch, and quicker bursts when speech has outrun the fingers.
+6. Each keystroke is posted to the system as a `CGEvent`, indistinguishable from a real keypress. Corrections use the delete key and are capped, so a single one can never eat more than a few words.
+
+### Tuning
+
+`revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) is how far back a correction may reach, in characters. It defaults to 24, roughly four words.
+
+Lower it if you would rather DicType left a wrong word alone than rewrite it. Raise it if you would rather it fixed more of what the recogniser changes its mind about, and don't mind seeing a little more rewriting on screen.
+
+---
+
+## Design notes
+
+### Streaming dictation is not append-only
+
+The obvious mental model — words arrive, you type them — is wrong. `SFSpeechRecognizer` does not hand over words as it hears them. It hands over its best guess at the **entire utterance so far**, repeatedly, and that guess keeps changing as more audio arrives:
+
+```
+"the cow jump"          →  "the cow jumped"        extended
+"the cow jumped"        →  "the cows jumped"       a word revised
+"the cow jumped"        →  "The cow jumped"        capitalised, at index 0
+"hello world"           →  "hello w"               retracted
+```
+
+That rules out both naive designs:
+
+| approach | what breaks |
+| --- | --- |
+| append whatever is new since last time | `the cow jumped` → `the cows jumped` types **`the cow jumpeds jumped`**; retractions are silently ignored and stale text stays |
+| always correct to match the transcript | one capitalisation at index 0 erases the whole sentence and retypes it — 43 characters wiped for a one-character change |
+
+Both were observed. The first is what an append-only writer does by construction; the second is what happens the moment you add backspacing without bounding it.
+
+### Settling
+
+The resolution is to make part of the output immutable, and to move that boundary forward aggressively:
+
+- **Sentence punctuation settles what precedes it.** Say a full stop and the sentence is locked.
+- **Distance settles the rest.** Anything more than `revisionWindow` characters back is locked regardless.
+
+A correction can therefore only ever touch the recent tail, which caps how much rewriting is visible. Revising text that has been computed but not yet typed is free — no keystrokes have been spent on it — and that is the common case, because typing deliberately lags speech.
+
+The cost is accepted explicitly: a revision to settled text is **discarded**, so a word can stay as first shown even though the recogniser later disagreed. A stale word beats watching a finished sentence disappear.
+
+### The settled prefix is a string, not an index
+
+This is the non-obvious part, and getting it wrong produced a real bug.
+
+The live region of the output mirrors the transcript tail exactly, so the two must stay index-aligned. But the transcript **changes length** as it is revised. An index into the output therefore stops pointing at the same place in the transcript as soon as a revision behind it changes a word's length.
+
+Holding the settled prefix as an index and slicing the incoming transcript at that offset produced:
+
+```
+"hello world."  +  revision to "hello worlds."   →   "hello world.."
+```
+
+— a doubled full stop, because index 12 no longer meant the same thing in both strings. Storing the settled prefix as *text* and matching on it (`transcript.hasPrefix(baseline)`) keeps the mapping exact by construction. When the recogniser rewrites something already settled, the prefix test fails, and that case is handled explicitly: keep what is on screen, adopt the new transcript as the baseline, emit nothing for the overlap.
+
+### Verifying it
+
+The failure mode that matters is emitting more backspaces than the app itself typed, which would delete the user's own text. That is hard to be confident about by inspection, so:
+
+- The decision logic is separated from event posting (`nextKeystroke() -> Keystroke?`), making the state machine drivable without synthesising real key events.
+- A model of the state machine was fuzzed over **30,000 randomised sessions / ~1.1M characters** while designing it — which is what surfaced both the duplication and the doubled full stop, before either reached Swift.
+- The [Swift suite](DicType/Tests/DicTypeTests/TypewriterTests.swift) mirrors it. Every case asserts against a modelled text field containing pre-existing content that must survive untouched — the app must never delete more than it typed, and never exceed the window.
+- Randomised tests are split by contract: grow-only sessions assert the transcript is reproduced *exactly*; revision-heavy sessions assert the safety bounds, since settled text is deliberately allowed to be stale.
+
+`swift test` runs on every push.
+
+### Concurrency
+
+Recognition callbacks arrive on a queue of the Speech framework's choosing. Rather than lock engine state piecemeal, the callback reads what it needs on that queue and hands plain values to the main thread, where all engine state lives. A generation counter discards callbacks belonging to a session already torn down — cancelling a task does not guarantee it stops calling back. The typewriter runs its own serial queue and guards the settings the UI sliders write.
+
+---
+
+## Project layout
+
+```
+DicType/
+  Sources/DicType/
+    DicTypeApp.swift        SwiftUI entry point
+    RootView.swift          onboarding and console UI
+    Permissions.swift       microphone, speech, accessibility state
+    DictationEngine.swift   audio capture, recognition, session lifecycle
+    Typewriter.swift        settling, correction, keystroke cadence
+  Tests/DicTypeTests/       state machine coverage
+  Resources/                Info.plist, entitlements, icon
+  build.sh                  compile + assemble + sign the bundle
+  build-dmg.sh              package the installer
+  release.sh                signed and notarized release (maintainer)
+tools/make-icon.py          regenerate AppIcon.icns from the SVG
+tests/                      packaging, workflow and README checks
+.github/workflows/          CI and release
+```
 
 ---
 
@@ -255,4 +370,4 @@ gh release create v1.1.0 assets/DicType.dmg assets/DicType.zip \
 
 ## License
 
-MIT — see [LICENSE](DicType/LICENSE).
+MIT — see [LICENSE](LICENSE).
