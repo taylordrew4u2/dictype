@@ -173,6 +173,24 @@ Check that the right microphone is selected in System Settings → Sound → Inp
 </details>
 
 <details>
+<summary><b>A word came out wrong and never got fixed</b></summary>
+
+Expected, and deliberate. Once text has settled — behind a full stop, question mark or exclamation mark, or more than about four words back — DicType will not go back and change it, even if the recogniser later decides it heard something different. The alternative is watching a finished sentence get erased and retyped, which is worse.
+
+If you want it to correct more of what it typed, raise `revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) and rebuild. See **Tuning** under *How it works*.
+
+</details>
+
+<details>
+<summary><b>It goes back and deletes what I just said</b></summary>
+
+A correction should never reach back more than about four words, and never behind a full stop, question mark or exclamation mark. If you are seeing more than that, you are probably on an older build — check **DicType → About**, or reinstall from the [latest release](https://github.com/taylordrew4u2/dictype/releases/latest/download/DicType.dmg).
+
+To make corrections smaller still, lower `revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) and rebuild.
+
+</details>
+
+<details>
 <summary><b>The app has no icon</b></summary>
 
 The bundle must contain `Contents/Resources/AppIcon.icns`. If it is missing, regenerate it and rebuild:
@@ -197,10 +215,17 @@ Change `localeID` in [DicType/Sources/DicType/DictationEngine.swift](DicType/Sou
 ## How it works
 
 1. `AVAudioEngine` captures the microphone.
-2. `SFSpeechRecognizer` returns partial transcripts as you speak.
-3. Each transcript is compared to the last confirmed text, and only the newly spoken characters are queued so the visible output stays stable.
-4. The queue drains on a human-like timing model with uneven pauses, longer gaps after punctuation or word boundaries, and the occasional micro-hitch.
-5. Each character is posted to the system as a `CGEvent`, indistinguishable from a real keypress.
+2. `SFSpeechRecognizer` returns partial transcripts as you speak. Each one is the *whole* utterance so far, not just the new part, and it keeps changing — words get re-segmented, plurals appear, the first word gets capitalised — right up until the recogniser declares the result final.
+3. DicType keeps its own copy of what it intends to have typed, along with a cursor for how much of that has actually reached the screen. The tail of that copy mirrors the latest transcript, so a revision to something not yet typed costs nothing at all.
+4. Text behind a full stop, question mark or exclamation mark — and anything more than about four words back — is *settled*. Settled text is never taken back, which is what stops a late revision erasing a finished sentence. The settled part is tracked as text rather than as a position, because the transcript changes length as it is revised and a position would drift out of step with it.
+5. The remainder drains on a human-like timing model: uneven pauses, longer gaps after punctuation or word boundaries, the occasional micro-hitch, and quicker bursts when speech has outrun the fingers.
+6. Each keystroke is posted to the system as a `CGEvent`, indistinguishable from a real keypress. Corrections use the delete key and are capped, so a single one can never eat more than a few words.
+
+### Tuning
+
+`revisionWindow` in [DicType/Sources/DicType/Typewriter.swift](DicType/Sources/DicType/Typewriter.swift) is how far back a correction may reach, in characters. It defaults to 24, roughly four words.
+
+Lower it if you would rather DicType left a wrong word alone than rewrite it. Raise it if you would rather it fixed more of what the recogniser changes its mind about, and don't mind seeing a little more rewriting on screen.
 
 ---
 
