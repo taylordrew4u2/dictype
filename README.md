@@ -29,6 +29,8 @@ A native macOS app in Swift and SwiftUI. Synthesises real keystrokes, so it type
 
 ---
 
+<p align="center"><img src="docs/promo/overview.png" alt="DicType listening to a sentence while Notes types it out one character at a time" width="100%" /></p>
+
 ## Install
 
 ### Download the installer
